@@ -60,8 +60,21 @@ find_path(
   HINTS ${CUDA_DIR}
   PATH_SUFFIXES include)
 
+# Statically link with CUDART libs
+option(CUDART_STATIC "Link statically with CUDArt libraries" OFF)
+message(STATUS "CUDART_STATIC=${CUDART_STATIC}")
+if(CUDART_STATIC)
+  set(CUDART_NAME cudart_static)
+else()
+  set(CUDART_NAME cudart)
+endif()
+
+# Standard practice to link with Threads when linking CUDA either statically or
+# dynamically
+find_package(Threads REQUIRED)
+
 find_library(
-  CUDART_LIB cudart
+  CUDART_LIB ${CUDART_NAME}
   HINTS ${CUDA_DIR} ${CUDA_TARGET_DIR}
   PATH_SUFFIXES lib lib64)
 
@@ -79,11 +92,8 @@ find_path(
 set(CUDA_INCLUDE_DIR ${CUDA_RUNTIME_API_INCLUDE_DIR}
                      ${CURAND_KERNEL_INCLUDE_DIR})
 
-set(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
-
 # NVTX profiling support option (default: OFF)
 option(ENABLE_NVTX_PROFILING "Enable NVTX profiling support" OFF)
-
 if(ENABLE_NVTX_PROFILING)
   # Use bundled NVTX3 headers (v3.4.0-c-cpp) for consistency across all
   # platforms This ensures profiling support works on all targets
@@ -144,7 +154,8 @@ set(COMMON_INCLUDE_DIRS
     ${CMAKE_SOURCE_DIR}/3rdParty/stb)
 
 add_library(commonLibraryExt INTERFACE)
-target_link_libraries(commonLibraryExt INTERFACE ${NVINFER_LIB} ${CUDART_LIB})
+target_link_libraries(commonLibraryExt INTERFACE ${NVINFER_LIB} ${CUDART_LIB}
+                                                 Threads::Threads)
 # Workaround for aarch64 cross compilation where libvninfer.so links to
 # libnvdla_compilers. The libnvinfer dependencies shall be resolved at execution
 # time on an embedded board.
@@ -173,7 +184,8 @@ if(BUILD_UNIT_TESTS)
   # Define project root path for tests to access resources
   target_compile_definitions(unitTest
                              PRIVATE PROJECT_ROOT_DIR="${CMAKE_SOURCE_DIR}")
-  target_link_libraries(unitTest PRIVATE gtest gtest_main edgellmCore
-                                         ${CUDART_LIB} ${CUDA_DRIVER_LIB})
+  target_link_libraries(
+    unitTest PRIVATE gtest gtest_main edgellmCore ${CUDART_LIB}
+                     ${CUDA_DRIVER_LIB} Threads::Threads)
   add_cross_build_link_options(unitTest)
 endif()
